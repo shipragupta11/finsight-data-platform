@@ -1,0 +1,9 @@
+pyproject.toml
+src/finsight/__init__.py
+src/finsight/ingestion/__init__.py
+src/finsight/ingestion/world_bank.py
+src/finsight_data_platform.egg-info/PKG-INFO
+src/finsight_data_platform.egg-info/SOURCES.txt
+src/finsight_data_platform.egg-info/dependency_links.txt
+src/finsight_data_platform.egg-info/requires.txt
+src/finsight_data_platform.egg-info/top_level.txt
