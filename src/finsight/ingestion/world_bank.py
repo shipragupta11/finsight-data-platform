@@ -4,11 +4,66 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 BASE_URL = "https://api.worldbank.org/v2/country"
 COUNTRIES = ["NZL", "AUS", "USA"]
 INDICATOR = "NY.GDP.MKTP.CD"
 RAW_DIR = Path("data/raw/world_bank/gdp")
+
+def create_session():
+    """Create an HTTP session with retries for transient failures."""
+    retry_strategy = Retry(
+        total=4,
+        connect=4,
+        read=4,
+        status=4,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"],
+        respect_retry_after_header=True,
+        raise_on_status=False,
+    )
+
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+
+    session = requests.Session()
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    return session
+
+
+def validate_api_response(payload):
+    """Validate the structure of a World Bank API response."""
+    if not isinstance(payload, list) or len(payload) < 2:
+        raise ValueError("Unexpected API response")
+
+    metadata, records = payload
+
+    if not isinstance(metadata, dict):
+        raise TypeError("Expected pagination metadata to be a dictionary")
+
+    if not isinstance(records, list):
+        raise TypeError("Expected observation records to be a list")
+
+    try:
+        pages = int(metadata["pages"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Invalid pagination metadata: missing or invalid pages") from exc
+
+    if pages < 1:
+        raise ValueError("Invalid pagination metadata: pages must be at least 1")
+
+    for record in records:
+        if not isinstance(record, dict):
+            raise TypeError("Expected each observation to be a dictionary")
+
+        if "country" not in record or "date" not in record or "value" not in record:
+            raise ValueError("Observation is missing required fields")
+
+    return metadata, records
 
 
 def fetch_gdp():
@@ -16,7 +71,7 @@ def fetch_gdp():
     observations = []
     page = 1
 
-    with requests.Session() as session:
+    with create_session() as session:
         while True:
             url = (
                 f"{BASE_URL}/"
@@ -36,14 +91,7 @@ def fetch_gdp():
             response.raise_for_status()
 
             payload = response.json()
-
-            if not isinstance(payload, list) or len(payload) < 2:
-                raise ValueError("Unexpected API response")
-
-            metadata, records = payload
-
-            if not isinstance(records, list):
-                raise TypeError("Expected observation records to be a list")
+            metadata, records = validate_api_response(payload)
 
             observations.extend(records)
 
