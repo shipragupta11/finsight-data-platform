@@ -9,3 +9,6 @@ __pycache__/
 !.env.example
 data/raw/*
 !data/raw/.gitkeep
+# Test temporary files
+.pytest-tmp/
+.pytest-tmp*/
